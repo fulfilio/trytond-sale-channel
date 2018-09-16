@@ -234,10 +234,21 @@ class ProductSaleChannelListing(ModelSQL, ModelView):
 
     @classmethod
     def get_unit_digits(cls, records, name):
-        result = {r.id: r.product.default_uom.digits if r.product else 2
-                  for r in records}
+        cursor = Transaction().connection.cursor()
 
-        return result
+        query = """
+            select
+                listing.id, product_uom.digits
+            from
+                product_product_channel_listing as listing
+            join product_product on product_product.id = listing.product
+            join product_uom on product_uom.id = product_product.default_uom
+            where listing.id = ANY(%s)
+        """
+
+        cursor.execute(query, (map(int, records), ))
+
+        return dict(cursor.fetchall())
 
     @classmethod
     def get_listing_url(cls, records, name):
@@ -245,7 +256,7 @@ class ProductSaleChannelListing(ModelSQL, ModelView):
         Downstream modules should implement this function
         and return a valid url
         """
-        return None
+        return dict.fromkeys([r.id for r in records])
 
     @classmethod
     def get_availability_fields(cls, listings, names):
@@ -269,7 +280,10 @@ class ProductSaleChannelListing(ModelSQL, ModelView):
 
     @classmethod
     def get_channel_source(cls, records, name):
-        result = {r.id: r.channel and r.channel.source for r in records}
+        result = {
+            r.id: r.channel.source
+            for r in records
+        }
 
         return result
 
